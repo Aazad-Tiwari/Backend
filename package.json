@@ -1,0 +1,17 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Learning Backend with mega project",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Express",
+    "Mongoose",
+    "MongoDB",
+    "MERN"
+  ],
+  "author": "Aazad Tiwari",
+  "license": "ISC"
+}
