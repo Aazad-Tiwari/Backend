@@ -4,6 +4,27 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+const generateAccessAndRefreshToken = async (userId) => {
+  try {
+    const user = await User.findById(userId); // db se user find kro
+    const refreshToken = user.generateRefreshToken();
+    const accessToken = user.generateAccessToken();
+
+    user.refreshToken = refreshToken; // user object k andar refreshToken wale field me refreshToken dalo
+
+    // user.save()            // user.save() se DB me refreshToken save ho jayega but mongoose ka jo user.model.js hai , vo phirse sabhi required attributes ka value mangne lag jayega uss case me 👇
+
+    await user.save({ validateBeforeSave: false }); // no validations while saving
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "something went wrong while generating refresh and access token"
+    );
+  }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   // get user details from frontend
   // validation - not empty
@@ -86,4 +107,93 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "User Registered Successfully"));
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res) => {
+  // Check whether data is received from frontend
+  // check if username and password is non empty
+  // check if userExist in the DB
+  // check for password
+  // access and refresh token
+  // send cookie
+  // send response
+
+  const { username, password, email } = req.body;
+
+
+  if (!(username || email)) {
+    throw new ApiError(400, "username or email is required");
+  }
+
+
+  const user = await User.findOne({ // this user doesn't have refreshToken coz abhi tak generateAccessAndRefreshToken call hi nahi hua
+    $or: [{username}, {email}],
+  });
+
+
+  if (!user) {
+    throw new ApiError(404, "User with given credentials doesn`t exist");
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, `Invalid user credentials`);
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    user._id
+  );
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  // allow modifying cookies only from server and not from frontend
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken,
+          refreshToken,
+        },
+        "User logged in Successfully"
+      )
+    );
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set : {
+        refreshToken : undefined
+      }
+    },
+    {
+      new : true
+    }
+  )
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+  .status(200)
+  .clearCookie("accessToken", options)
+  .clearCookie("refreshToken", options)
+  .json( new ApiResponse(200, {}, "User logged out") )
+
+})
+
+export { registerUser, loginUser, logoutUser };
