@@ -218,9 +218,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Refresh token is expired or used");
   }
 
-  const { accessToken, newRefreshToken } = await generateAccessAndRefreshToken(
-    user._id
-  );
+  const { accessToken, refreshToken: newRefreshToken } =
+    await generateAccessAndRefreshToken(user._id);
 
   const options = {
     httpOnly: true,
@@ -250,7 +249,11 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "oldPassword and newPassword is required");
   }
 
-  const user = await User.findById(req.user?._id);
+  if (oldPassword == newPassword) {
+    throw new ApiError(400, "old password and new password cannot be same");
+  }
+
+  const user = await User.findById(req.user._id);
 
   const isPasswordValid = await user.isPasswordCorrect(oldPassword);
 
@@ -315,7 +318,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(
-    res.user?._id,
+    req.user?._id,
     {
       $set: {
         avatar: avatar.url,
@@ -345,7 +348,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(
-    res.user?._id,
+    req.user?._id,
     {
       $set: {
         coverImage: coverImage.url,
@@ -433,7 +436,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
       $match: {
-        _id: mongoose.Types.ObjectId(req.user._id),
+        _id: new mongoose.Types.ObjectId(req.user._id),
       },
     },
     {
@@ -449,23 +452,23 @@ const getWatchHistory = asyncHandler(async (req, res) => {
               localField: "owner",
               foreignField: "_id",
               as: "owner",
-              pipeline : [
+              pipeline: [
                 {
-                  $project : {
+                  $project: {
                     fullName: 1,
-                    username : 1,
-                    avatar : 1
-                  }
-                }
-              ]
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
             },
           },
           {
-            $addFields : {
-              owner : {
-                $first : "owner"
-              }
-            }
+            $addFields: {
+              owner: {
+                $first: "$owner",
+              },
+            },
           },
         ],
       },
@@ -473,8 +476,14 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   ]);
 
   return res
-  .status(200)
-  .json(new ApiResponse(200, user[0].watchHistory, "Watch History fetched Successfully" ))
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user,
+        "Watch History fetched Successfully"
+      )
+    );
 });
 
 export {
