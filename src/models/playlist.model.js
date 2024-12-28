@@ -14,7 +14,7 @@ const playlistSchema = new Schema(
     },
     name: {
       type: String,
-      required: true,
+      default: "Untitled",
     },
     description: {
       type: String,
