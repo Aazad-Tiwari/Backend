@@ -1,9 +1,10 @@
 import { Video } from "../models/video.model.js";
+import { User } from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -27,7 +28,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
   const videos = await Video.aggregate([
     {
-      $match: matchQuery
+      $match: matchQuery,
     },
     {
       $lookup: {
@@ -122,10 +123,84 @@ const publishAVideo = asyncHandler(async (req, res) => {
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   //TODO: get video by id
-  if (!videoId) {
-    throw new ApiError(404, "Video Not Found");
+
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid video id");
   }
-  const video = await Video.findById(videoId);
+
+  await Video.findByIdAndUpdate(videoId, { $inc: { views: 1 } });
+
+  const video = await Video.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(videoId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+        pipeline: [
+          {
+            $project: {
+              fullName: 1,
+              title: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "owner._id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "video",
+        as: "likes",
+      },
+    },
+    {
+      $addFields: {
+        owner: {
+          $first: "$owner",
+        },
+        subscribers: {
+          $size: "$subscribers",
+        },
+        likes: {
+          $size: "$likes",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+  ]);
+
+  const user = await User.findById(req.user._id);
+
+  if (!user.watchHistory.includes(video[0]._id)) {
+    user.watchHistory.push(video[0]._id);
+    await user.save({ validateBeforeSave: false });
+  }
+
+  if (!video) {
+    throw new ApiError(500, "Internal error while finding the vid");
+  }
 
   return res.status(200).json(new ApiResponse(200, video, "video fetched"));
 });
