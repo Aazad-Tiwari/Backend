@@ -297,7 +297,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     {
       new: true,
     }
-  ).select("-password");
+  ).select("_id fullName email");
 
   return res
     .status(200)
@@ -327,7 +327,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     {
       new: true,
     }
-  ).select("-password");
+  ).select("avatar _id");
 
   return res
     .status(200)
@@ -357,7 +357,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     {
       new: true,
     }
-  ).select("-password");
+  ).select("_id coverImage");
 
   return res
     .status(200)
@@ -473,6 +473,17 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         ],
       },
     },
+    {
+      $project : {
+        username : 1,
+        avatar : 1,
+        fullName : 1,
+        "watchHistory.thumbnail" : 1,
+        "watchHistory.title" : 1,
+        "watchHistory.owner" : 1,
+        "watchHistory._id" : 1
+      }
+    }
   ]);
 
   return res
