@@ -15,18 +15,22 @@ const toggleLike = async (userId, typeId, type, res) => {
       throw new ApiError(500, `Unable to like ${type}`);
     }
 
-    return res.status(200).json(new ApiResponse(200, newLike, `${type} Liked`));
+    const likeCount = await Like.countDocuments({[type]: typeId})
+
+    return res.status(200).json(new ApiResponse(200, {like : newLike, likeCount}, `${type} Liked`));
   }
 
-  const deleteLike = await Like.findByIdAndDelete(like._id);
+  const deletedLike = await Like.findByIdAndDelete(like._id);
 
-  if (!deleteLike) {
+  if (!deletedLike) {
     throw new ApiError(500, "unable to unlike");
   }
 
+  const likeCount = await Like.countDocuments({[type]: typeId})
+
   return res
     .status(200)
-    .json(new ApiResponse(200, deleteLike, `${type} Unliked`));
+    .json(new ApiResponse(200, {deletedLike, likeCount}, `${type} Unliked`));
 };
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
