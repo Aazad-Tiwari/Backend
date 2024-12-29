@@ -3,7 +3,7 @@ import { User } from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import mongoose, { isValidObjectId } from "mongoose";
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -210,7 +210,6 @@ const updateVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
 
   const thumbnailLocalPath = req.file?.path;
-  console.log(title, description, thumbnailLocalPath);
   //TODO: update video details like title, description, thumbnail
   const video = await Video.findById(videoId);
 
@@ -226,6 +225,8 @@ const updateVideo = asyncHandler(async (req, res) => {
   }
 
   if (thumbnailLocalPath) {
+    const publicId = video.thumbnail.split("/").pop().split(".")[0];
+    await deleteFromCloudinary(publicId);
     video.thumbnail = (await uploadOnCloudinary(thumbnailLocalPath)).url;
   }
 
@@ -255,6 +256,12 @@ const deleteVideo = asyncHandler(async (req, res) => {
       "Access denied: You do not have permission to delete this video"
     );
   }
+
+  const videoFilePublicId = video.videoFile.split("/").pop().split(".")[0];
+  await deleteFromCloudinary(videoFilePublicId, "video");
+
+  const thumbnailPublicId = video.thumbnail.split("/").pop().split(".")[0];
+  await deleteFromCloudinary(thumbnailPublicId);
 
   const deletedVideo = await Video.findByIdAndDelete(videoId);
 
